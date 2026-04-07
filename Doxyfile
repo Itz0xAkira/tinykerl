@@ -1,0 +1,10 @@
+PROJECT_NAME           = "TinyKerl"
+PROJECT_BRIEF          = "A minimal x86 kernel"
+OUTPUT_DIRECTORY       = docs
+INPUT                  = src/include src/kernel.c
+FILE_PATTERNS          = *.h *.c
+RECURSIVE              = NO
+EXTRACT_ALL            = YES
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+QUIET                  = YES
