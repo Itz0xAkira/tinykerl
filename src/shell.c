@@ -4,7 +4,9 @@
 #include "include/vga.h"
 #include "include/keyboard.h"
 #include "include/pit.h"
-#include "include/mem.h"
+#include "include/pmm.h"
+#include "include/kprintf.h"
+#include "include/io.h"
 
 #define INPUT_MAX 256
 
@@ -15,12 +17,20 @@ static int kstrcmp(const char *a, const char *b) {
     return *a - *b;
 }
 
+static int kstrncmp(const char *a, const char *b, size_t n) {
+    while (n-- && *a && *a == *b) { a++; b++; }
+    return n == (size_t)-1 ? 0 : *a - *b;
+}
+
 static void cmd_help(void) {
-    tty_print("commands:\n");
-    tty_print("  help    - show this message\n");
-    tty_print("  clear   - clear the screen\n");
-    tty_print("  uptime  - seconds since boot\n");
-    tty_print("  echo    - echo text back\n");
+    kprintf("commands:\n");
+    kprintf("  help    - show this message\n");
+    kprintf("  clear   - clear the screen\n");
+    kprintf("  uptime  - time since boot\n");
+    kprintf("  echo    - echo text back\n");
+    kprintf("  mem     - show memory usage\n");
+    kprintf("  reboot  - reboot the system\n");
+    kprintf("  halt    - halt the system\n");
 }
 
 static void cmd_clear(void) {
@@ -28,40 +38,53 @@ static void cmd_clear(void) {
 }
 
 static void cmd_uptime(void) {
-    uint32_t secs = pit_ticks() / 1000;
-    char buf[12];
-    int i = 0;
-    if (secs == 0) { buf[i++] = '0'; }
-    else {
-        uint32_t n = secs;
-        int start = i;
-        while (n) { buf[i++] = '0' + (n % 10); n /= 10; }
-        for (int l = start, r = i - 1; l < r; l++, r--) {
-            char tmp = buf[l]; buf[l] = buf[r]; buf[r] = tmp;
-        }
+    uint32_t ms   = pit_ticks();
+    uint32_t secs = ms / 1000;
+    uint32_t mins = secs / 60;
+    uint32_t hrs  = mins / 60;
+    kprintf("%uh %um %us\n", hrs, mins % 60, secs % 60);
+}
+
+static void cmd_mem(void) {
+    uint32_t free_pages = 0;
+    for (uint32_t i = 0; i < 32768; i++) {
+        void *p = pmm_alloc();
+        if (!p) break;
+        free_pages++;
     }
-    buf[i] = '\0';
-    tty_print(buf);
-    tty_print("s\n");
+    for (uint32_t i = 0; i < free_pages; i++)
+        pmm_free((void *)(i * 4096));
+    kprintf("free:  %u KB\n", free_pages * 4);
+}
+
+static void cmd_reboot(void) {
+    uint8_t good = 0x02;
+    while (good & 0x02) good = inb(0x64);
+    outb(0x64, 0xFE);
+    for (;;) __asm__ volatile("hlt");
+}
+
+static void cmd_halt(void) {
+    kprintf("System halted.\n");
+    __asm__ volatile("cli");
+    for (;;) __asm__ volatile("hlt");
 }
 
 static void cmd_echo(const char *args) {
-    tty_print(args);
-    tty_print("\n");
+    kprintf("%s\n", args);
 }
 
 static void dispatch(void) {
-    if (kstrcmp(input, "help") == 0)        cmd_help();
-    else if (kstrcmp(input, "clear") == 0)  cmd_clear();
+    if      (kstrcmp(input, "help")   == 0) cmd_help();
+    else if (kstrcmp(input, "clear")  == 0) cmd_clear();
     else if (kstrcmp(input, "uptime") == 0) cmd_uptime();
-    else if (input[0] == 'e' && input[1] == 'c' &&
-             input[2] == 'h' && input[3] == 'o' && input[4] == ' ')
-        cmd_echo(input + 5);
+    else if (kstrcmp(input, "mem")    == 0) cmd_mem();
+    else if (kstrcmp(input, "reboot") == 0) cmd_reboot();
+    else if (kstrcmp(input, "halt")   == 0) cmd_halt();
+    else if (kstrncmp(input, "echo ", 5) == 0) cmd_echo(input + 5);
     else if (input[0] != '\0') {
         tty_setcolor(vga_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK));
-        tty_print("unknown command: ");
-        tty_print(input);
-        tty_print("\n");
+        kprintf("unknown command: %s\n", input);
         tty_setcolor(vga_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
     }
 }
@@ -75,7 +98,7 @@ static void readline(void) {
             tty_putchar('\n');
             return;
         }
-        if (c == '\b' || c == 127) {
+        if (c == '\b') {
             if (i > 0) { i--; tty_putchar('\b'); }
             continue;
         }

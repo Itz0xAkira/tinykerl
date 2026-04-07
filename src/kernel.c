@@ -8,6 +8,8 @@
 #include "include/keyboard.h"
 #include "include/pmm.h"
 #include "include/heap.h"
+#include "include/serial.h"
+#include "include/kprintf.h"
 #include "include/shell.h"
 
 #define MULTIBOOT_MAGIC 0x2BADB002
@@ -24,36 +26,31 @@ typedef struct __attribute__((packed)) {
 
 void kernel_main(uint32_t magic, multiboot_info_t *mb) {
     tty_init();
+    serial_init();
 
     tty_setcolor(vga_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK));
-    tty_print("TinyKerl\n");
+    kprintf("TinyKerl\n");
     tty_setcolor(vga_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
 
-    gdt_init();
-    tty_print("GDT ok\n");
-
+    gdt_init();     kprintf("GDT      ok\n");
     pic_init();
-    idt_init();
-    tty_print("IDT ok\n");
-
-    pit_init(1000);
-    tty_print("PIT ok\n");
-
-    keyboard_init();
-    tty_print("Keyboard ok\n");
+    idt_init();     kprintf("IDT      ok\n");
+    pit_init(1000); kprintf("PIT      ok\n");
+    keyboard_init();kprintf("Keyboard ok\n");
+    serial_init();  kprintf("Serial   ok\n");
 
     if (magic == MULTIBOOT_MAGIC && (mb->flags & (1 << 6))) {
         pmm_init(mb->mmap_addr, mb->mmap_len);
         heap_init();
-        tty_print("Memory ok\n");
+        kprintf("Memory   ok  (lower: %u KB  upper: %u KB)\n",
+                mb->mem_lower, mb->mem_upper);
     } else {
         tty_setcolor(vga_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK));
-        tty_print("No memory map from bootloader\n");
+        kprintf("No memory map from bootloader\n");
         tty_setcolor(vga_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
     }
 
     __asm__ volatile("sti");
-
-    tty_print("\n");
+    kprintf("\n");
     shell_run();
 }

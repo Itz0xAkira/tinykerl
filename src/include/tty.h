@@ -20,8 +20,8 @@ void tty_setcolor(uint8_t color);
 /**
  * @brief Writes a single character to the terminal at the current cursor.
  *
- * Handles newline (@c \\n) and advances the cursor, scrolling the screen
- * up one line when the bottom is reached.
+ * Handles `\n` (newline), `\b` (backspace), and advances the hardware cursor.
+ * Scrolls the screen up one line when the bottom is reached.
  *
  * @param c Character to write.
  */
