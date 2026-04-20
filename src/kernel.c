@@ -12,6 +12,10 @@
 #include "include/kprintf.h"
 #include "include/shell.h"
 #include "include/multiboot.h"
+#include "include/paging.h"
+#include "include/vfs.h"
+#include "include/syscall.h"
+#include "include/task.h"
 
 void kernel_main(uint32_t magic, multiboot_info_t *mb) {
     tty_init();
@@ -38,6 +42,11 @@ void kernel_main(uint32_t magic, multiboot_info_t *mb) {
         kprintf("No memory map from bootloader\n");
         tty_setcolor(vga_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
     }
+
+    paging_init();
+    vfs_init();
+    syscall_init();
+    task_init();
 
     __asm__ volatile("sti");
     kprintf("\n");

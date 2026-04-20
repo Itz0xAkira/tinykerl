@@ -33,6 +33,7 @@ extern void isr21(void); extern void isr22(void); extern void isr23(void);
 extern void isr24(void); extern void isr25(void); extern void isr26(void);
 extern void isr27(void); extern void isr28(void); extern void isr29(void);
 extern void isr30(void); extern void isr31(void);
+extern void isr128(void);
 
 extern void irq0(void);  extern void irq1(void);  extern void irq2(void);
 extern void irq3(void);  extern void irq4(void);  extern void irq5(void);
@@ -139,6 +140,9 @@ void idt_init(void) {
     idt_set(45, (uint32_t)irq13, 0x08, 0x8E);
     idt_set(46, (uint32_t)irq14, 0x08, 0x8E);
     idt_set(47, (uint32_t)irq15, 0x08, 0x8E);
+
+    /* int 0x80 syscall gate — DPL=3 so user code can invoke it */
+    idt_set(128, (uint32_t)isr128, 0x08, 0xEE);
 
     idt_flush((uint32_t)&idt_ptr);
 }

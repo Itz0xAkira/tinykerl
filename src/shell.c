@@ -9,6 +9,8 @@
 #include "include/kprintf.h"
 #include "include/io.h"
 #include "include/mem.h"
+#include "include/vfs.h"
+#include "include/task.h"
 
 #define INPUT_MAX 256
 
@@ -31,6 +33,10 @@ static void cmd_help(void) {
     kprintf("  uptime  - time since boot\n");
     kprintf("  echo    - echo text back\n");
     kprintf("  mem     - show memory usage\n");
+    kprintf("  ls      - list files\n");
+    kprintf("  cat     - print file contents\n");
+    kprintf("  write   - write text to file\n");
+    kprintf("  ps      - list tasks\n");
     kprintf("  reboot  - reboot the system\n");
     kprintf("  halt    - halt the system\n");
 }
@@ -69,6 +75,60 @@ static void cmd_echo(const char *args) {
     kprintf("%s\n", args);
 }
 
+static void ls_cb(const char *name, size_t size) {
+    kprintf("  %-24s %u bytes\n", name, (uint32_t)size);
+}
+
+static void cmd_ls(const char *args) {
+    (void)args;
+    vfs_list(ls_cb);
+}
+
+static void cmd_cat(const char *args) {
+    if (!args || args[0] == '\0') { kprintf("usage: cat <file>\n"); return; }
+    int fd = vfs_open(args);
+    if (fd < 0) { kprintf("cat: cannot open %s\n", args); return; }
+    char buf[128];
+    int n;
+    while ((n = vfs_read(fd, buf, sizeof(buf) - 1)) > 0) {
+        buf[n] = '\0';
+        kprintf("%s", buf);
+    }
+    kprintf("\n");
+    vfs_close(fd);
+}
+
+/* write <file> <text> */
+static void cmd_write(const char *args) {
+    if (!args || args[0] == '\0') { kprintf("usage: write <file> <text>\n"); return; }
+    const char *sp = args;
+    while (*sp && *sp != ' ') sp++;
+    if (*sp == '\0') { kprintf("usage: write <file> <text>\n"); return; }
+    /* temporarily copy filename */
+    char fname[VFS_NAME_MAX];
+    size_t flen = (size_t)(sp - args);
+    if (flen >= VFS_NAME_MAX) flen = VFS_NAME_MAX - 1;
+    kmemcpy(fname, args, flen);
+    fname[flen] = '\0';
+    const char *text = sp + 1;
+    int fd = vfs_open(fname);
+    if (fd < 0) { kprintf("write: cannot open %s\n", fname); return; }
+    vfs_write(fd, text, kstrlen(text));
+    vfs_write(fd, "\n", 1);
+    vfs_close(fd);
+}
+
+static void ps_cb(const task_t *t) {
+    const char *state = t->state == TASK_RUNNING ? "running" :
+                        t->state == TASK_READY   ? "ready"   : "dead";
+    kprintf("  %-16s %s\n", t->name, state);
+}
+
+static void cmd_ps(const char *args) {
+    (void)args;
+    task_foreach(ps_cb);
+}
+
 typedef struct {
     const char *name;
     void (*fn)(const char *args);
@@ -89,7 +149,11 @@ static const cmd_t cmds[] = {
     {"mem",    cmd_mem_wrap,    0},
     {"reboot", cmd_reboot_wrap, 0},
     {"halt",   cmd_halt_wrap,   0},
+    {"ls",     cmd_ls,          0},
+    {"ps",     cmd_ps,          0},
     {"echo",   cmd_echo,        1},
+    {"cat",    cmd_cat,         1},
+    {"write",  cmd_write,       1},
 };
 #define NCMDS (sizeof(cmds) / sizeof(cmds[0]))
 
