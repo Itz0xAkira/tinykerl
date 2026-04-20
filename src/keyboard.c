@@ -39,9 +39,12 @@ static void kb_irq(registers_t *regs) {
     if (sc < sizeof(sc_ascii)) {
         char c = shift ? sc_ascii_shift[sc] : sc_ascii[sc];
         if (c) {
-            buf[buf_head] = c;
-            buf_head = (buf_head + 1) % BUF_SZ;
-        }
+                uint8_t next_head = (buf_head + 1) % BUF_SZ;
+                if (next_head != buf_tail) {
+                    buf[buf_head] = c;
+                    buf_head = next_head;
+                }
+            }
     }
     pic_eoi(1);
 }

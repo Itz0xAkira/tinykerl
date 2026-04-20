@@ -1,6 +1,8 @@
 #pragma once
 #include <stddef.h>
 
+#define PAGE_SIZE 4096
+
 /**
  * @brief Fills @p n bytes of memory at @p dst with the byte value @p c.
  *

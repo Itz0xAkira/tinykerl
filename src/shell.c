@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stddef.h>
 #include "include/shell.h"
 #include "include/tty.h"
 #include "include/vga.h"
@@ -7,6 +8,7 @@
 #include "include/pmm.h"
 #include "include/kprintf.h"
 #include "include/io.h"
+#include "include/mem.h"
 
 #define INPUT_MAX 256
 
@@ -46,14 +48,7 @@ static void cmd_uptime(void) {
 }
 
 static void cmd_mem(void) {
-    uint32_t free_pages = 0;
-    for (uint32_t i = 0; i < 32768; i++) {
-        void *p = pmm_alloc();
-        if (!p) break;
-        free_pages++;
-    }
-    for (uint32_t i = 0; i < free_pages; i++)
-        pmm_free((void *)(i * 4096));
+    uint32_t free_pages = pmm_free_count();
     kprintf("free:  %u KB\n", free_pages * 4);
 }
 
@@ -74,15 +69,46 @@ static void cmd_echo(const char *args) {
     kprintf("%s\n", args);
 }
 
+typedef struct {
+    const char *name;
+    void (*fn)(const char *args);
+    int takes_args;
+} cmd_t;
+
+static void cmd_help_wrap(const char *a)    { (void)a; cmd_help(); }
+static void cmd_clear_wrap(const char *a)   { (void)a; cmd_clear(); }
+static void cmd_uptime_wrap(const char *a)  { (void)a; cmd_uptime(); }
+static void cmd_mem_wrap(const char *a)     { (void)a; cmd_mem(); }
+static void cmd_reboot_wrap(const char *a)  { (void)a; cmd_reboot(); }
+static void cmd_halt_wrap(const char *a)    { (void)a; cmd_halt(); }
+
+static const cmd_t cmds[] = {
+    {"help",   cmd_help_wrap,   0},
+    {"clear",  cmd_clear_wrap,  0},
+    {"uptime", cmd_uptime_wrap, 0},
+    {"mem",    cmd_mem_wrap,    0},
+    {"reboot", cmd_reboot_wrap, 0},
+    {"halt",   cmd_halt_wrap,   0},
+    {"echo",   cmd_echo,        1},
+};
+#define NCMDS (sizeof(cmds) / sizeof(cmds[0]))
+
 static void dispatch(void) {
-    if      (kstrcmp(input, "help")   == 0) cmd_help();
-    else if (kstrcmp(input, "clear")  == 0) cmd_clear();
-    else if (kstrcmp(input, "uptime") == 0) cmd_uptime();
-    else if (kstrcmp(input, "mem")    == 0) cmd_mem();
-    else if (kstrcmp(input, "reboot") == 0) cmd_reboot();
-    else if (kstrcmp(input, "halt")   == 0) cmd_halt();
-    else if (kstrncmp(input, "echo ", 5) == 0) cmd_echo(input + 5);
-    else if (input[0] != '\0') {
+    for (size_t i = 0; i < NCMDS; i++) {
+        size_t nlen = kstrlen(cmds[i].name);
+        if (cmds[i].takes_args) {
+            if (kstrncmp(input, cmds[i].name, nlen) == 0 && input[nlen] == ' ') {
+                cmds[i].fn(input + nlen + 1);
+                return;
+            }
+        } else {
+            if (kstrcmp(input, cmds[i].name) == 0) {
+                cmds[i].fn(NULL);
+                return;
+            }
+        }
+    }
+    if (input[0] != '\0') {
         tty_setcolor(vga_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK));
         kprintf("unknown command: %s\n", input);
         tty_setcolor(vga_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));

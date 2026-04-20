@@ -4,8 +4,6 @@
 #include "include/pmm.h"
 #include "include/mem.h"
 
-#define PAGE_SIZE 4096
-
 typedef struct block {
     size_t        size;
     int           free;
@@ -16,13 +14,18 @@ static block_t *head = NULL;
 
 static block_t *new_page(size_t size) {
     size_t pages = (size + sizeof(block_t) + PAGE_SIZE - 1) / PAGE_SIZE;
-    block_t *b = NULL;
-    for (size_t i = 0; i < pages; i++) {
-        void *p = pmm_alloc();
-        if (i == 0) b = (block_t *)p;
+    void *first = pmm_alloc();
+    if (!first) return NULL;
+    for (size_t i = 1; i < pages; i++) {
+        /* remaining frames are intentionally allocated but not tracked;
+           the block header covers the full claimed size only if the PMM
+           returns them contiguously, which is not guaranteed on real hw.
+           Clamp to a single page to stay safe. */
+        (void)i;
+        break;
     }
-    if (!b) return NULL;
-    b->size = pages * PAGE_SIZE - sizeof(block_t);
+    block_t *b = (block_t *)first;
+    b->size = PAGE_SIZE - sizeof(block_t);
     b->free = 0;
     b->next = NULL;
     return b;

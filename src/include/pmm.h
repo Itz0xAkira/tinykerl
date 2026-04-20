@@ -3,6 +3,13 @@
 #include <stddef.h>
 
 /**
+ * @brief Returns the number of free physical pages.
+ *
+ * @return Count of free 4KB pages currently in the PMM bitmap.
+ */
+uint32_t pmm_free_count(void);
+
+/**
  * @brief A single entry from the GRUB-provided memory map.
  *
  * The @p type field indicates the region's usability:

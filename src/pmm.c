@@ -3,7 +3,6 @@
 #include "include/pmm.h"
 #include "include/mem.h"
 
-#define PAGE_SIZE 4096
 #define MAX_PAGES 32768
 
 static uint32_t bitmap[MAX_PAGES / 32];
@@ -48,4 +47,11 @@ void *pmm_alloc(void) {
 
 void pmm_free(void *addr) {
     bitmap_clear((uint32_t)addr / PAGE_SIZE);
+}
+
+uint32_t pmm_free_count(void) {
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < MAX_PAGES; i++)
+        if (!bitmap_test(i)) count++;
+    return count;
 }

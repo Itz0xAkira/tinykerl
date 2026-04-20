@@ -37,6 +37,8 @@ void kvprintf(const char *fmt, va_list args) {
             case 'd': print_int(va_arg(args, int32_t));           break;
             case 'u': print_uint(va_arg(args, uint32_t), 10);     break;
             case 'x': print_uint(va_arg(args, uint32_t), 16);     break;
+            case 'p': print_str("0x");
+                      print_uint((uint32_t)va_arg(args, void *), 16); break;
             case '%': print_char('%');                             break;
             default:  print_char('%'); print_char(*fmt);          break;
         }
@@ -48,4 +50,14 @@ void kprintf(const char *fmt, ...) {
     va_start(args, fmt);
     kvprintf(fmt, args);
     va_end(args);
+}
+
+void kpanic(const char *fmt, ...) {
+    __asm__ volatile("cli");
+    print_str("PANIC: ");
+    va_list args;
+    va_start(args, fmt);
+    kvprintf(fmt, args);
+    va_end(args);
+    for (;;) __asm__ volatile("hlt");
 }

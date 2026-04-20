@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include "include/idt.h"
 #include "include/tty.h"
+#include "include/kprintf.h"
 
 typedef struct __attribute__((packed)) {
     uint16_t base_low;
@@ -64,10 +65,16 @@ void isr_handler(registers_t *regs) {
         handlers[regs->int_no](regs);
         return;
     }
-    tty_print("EXCEPTION: ");
-    tty_print(exception_names[regs->int_no]);
-    tty_print("\n");
-    for (;;) __asm__ volatile("hlt");
+    if (regs->int_no == 14) {
+        uint32_t cr2;
+        __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
+        kpanic("Page Fault at 0x%x (err=0x%x) eip=0x%x\n",
+               cr2, regs->err_code, regs->eip);
+    }
+    kpanic("Exception %u: %s (err=0x%x) eip=0x%x\n",
+           regs->int_no,
+           regs->int_no < 32 ? exception_names[regs->int_no] : "Unknown",
+           regs->err_code, regs->eip);
 }
 
 void irq_handler(registers_t *regs) {
